@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate error_chain;
 
-mod future;
-use future::*;
+mod my_future;
+use my_future::*;
 
 use flux_sys;
 
@@ -66,9 +66,8 @@ impl Flux {
         key: &str,
     ) -> Result<FluxKvsFuture> {
         let k = CString::new(key)?;
-        let fut_ptr =
-            unsafe { flux_sys::flux_kvs_lookup(self.handle, flags as i32, k.as_ptr()) }
-                .flux_check()?;
+        let fut_ptr = unsafe { flux_sys::flux_kvs_lookup(self.handle, std::ptr::null(), flags as i32, k.as_ptr()) }
+            .flux_check()?;
         Ok(FluxKvsFuture::from_ptr(fut_ptr))
     }
 }
@@ -89,7 +88,8 @@ fn main() -> Result<()> {
     // h.service_register("sched")?.get()?;
     eprintln!("got a handle!");
     eprintln!("Hello, world! size:{:?}", h.attr_get("size")?);
-    let mut composite = h.kvs_lookup(0, "thing")?
+    let mut composite = h
+        .kvs_lookup(0, "thing")?
         .and_then(|fi| {
             eprintln!("kvs result:{:?}", fi.lookup_get()?);
             h.kvs_lookup(0, "other_thing")

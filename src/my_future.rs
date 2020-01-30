@@ -3,6 +3,14 @@ use crate::errors::*;
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 
+use std::future::Future;
+use std::task::{Context, Poll, Waker};
+use std::pin::Pin;
+
+struct FluxInnerFuture {
+    f: Box<FnMut()>,
+}
+
 #[derive(Debug)]
 pub struct FluxFuture {
     f: *mut flux_sys::flux_future_t,
@@ -27,7 +35,7 @@ impl FromPtr for FluxKvsFuture {
     }
 }
 
-pub trait Future: FromPtr {
+pub trait MyFuture: FromPtr {
     // must implement
     fn get_inner_mut(self: &mut Self) -> *mut flux_sys::flux_future_t;
     fn get_inner(self: &Self) -> *const flux_sys::flux_future_t;
@@ -37,7 +45,7 @@ pub trait Future: FromPtr {
     unsafe extern "C" fn callback(
         f: *mut flux_sys::flux_future_t,
         arg: *mut ::std::os::raw::c_void,
-        ) {
+    ) {
         let mut closure = Box::<RefCell<Box<FnMut(&mut Self)>>>::from_raw(arg as *mut _);
         let mut future = Self::from_ptr(f);
         (closure.get_mut())(&mut future);
@@ -45,45 +53,46 @@ pub trait Future: FromPtr {
     }
     fn package_flux_continuation<F: FnMut(&mut Self)>(
         func: F,
-        ) -> (flux_sys::flux_continuation_f, *mut std::os::raw::c_void) {
-        let closure: Box::<RefCell<Box<FnMut(&mut Self)>>> = Box::new(RefCell::new(Box::new(func)));
+    ) -> (flux_sys::flux_continuation_f, *mut std::os::raw::c_void) {
+        let closure: Box<RefCell<Box<FnMut(&mut Self)>>> = Box::new(RefCell::new(Box::new(func)));
         let erased_closure = Box::into_raw(closure) as *mut ::std::os::raw::c_void;
         return (Some(Self::callback), erased_closure);
     }
-    unsafe extern "C" fn and_cb<R: Future>(
+    unsafe extern "C" fn and_cb<R: MyFuture>(
         f: *mut flux_sys::flux_future_t,
         arg: *mut ::std::os::raw::c_void,
-        ) {
-        let mut closure = Box::<RefCell<Box<FnMut(&mut Self) -> Result<R>>>>::from_raw(arg as *mut _);
+    ) {
+        let mut closure =
+            Box::<RefCell<Box<FnMut(&mut Self) -> Result<R>>>>::from_raw(arg as *mut _);
         let mut future = Self::from_ptr(f);
         match &mut (closure.get_mut())(&mut future) {
             Ok(next) => {
-                unsafe {
                     flux_sys::flux_future_continue(future.get_inner_mut(), next.get_inner_mut())
-                }.flux_check().unwrap(); // panic on failure
-                // next.forget(); // keep it from being reaped here
-            },
+                .flux_check()
+                .unwrap(); // panic on failure
+                           // next.forget(); // keep it from being reaped here
+            }
             Err(_) => {
-                unsafe {
                     //TODO see if we can get the num here
-                    flux_sys::flux_future_continue_error(f, -1)
-                }
+                    flux_sys::flux_future_continue_error(f, -1, std::ptr::null())
             }
         };
         // closure collected here, be sure this is ok
     }
-    fn package_flux_and_continuation<R: Future, F: FnMut(&mut Self) -> Result<R>>(
+    fn package_flux_and_continuation<R: MyFuture, F: FnMut(&mut Self) -> Result<R>>(
         func: F,
-        ) -> (flux_sys::flux_continuation_f, *mut std::os::raw::c_void) {
-        let closure: Box::<RefCell<Box<FnMut(&mut Self) -> Result<R>>>> = Box::new(RefCell::new(Box::new(func)));
+    ) -> (flux_sys::flux_continuation_f, *mut std::os::raw::c_void) {
+        let closure: Box<RefCell<Box<FnMut(&mut Self) -> Result<R>>>> =
+            Box::new(RefCell::new(Box::new(func)));
         let erased_closure = Box::into_raw(closure) as *mut ::std::os::raw::c_void;
         return (Some(Self::and_cb::<R>), erased_closure);
     }
 
     fn create<F: FnMut(&mut Self)>(func: F) -> Result<Self> {
         let (cb, arg) = Self::package_flux_continuation(func);
-        Ok(Self::from_ptr(unsafe { flux_sys::flux_future_create(cb, arg) }
-                          .flux_check()?))
+        Ok(Self::from_ptr(
+            unsafe { flux_sys::flux_future_create(cb, arg) }.flux_check()?,
+        ))
     }
 
     // For all futures
@@ -103,7 +112,7 @@ pub trait Future: FromPtr {
     fn then_within<F: FnMut(&mut Self)>(mut self: Self, timeout: f64, func: F) -> Result<Self> {
         let (cb, arg) = Self::package_flux_continuation(func);
         unsafe { flux_sys::flux_future_then(self.get_inner_mut(), timeout, cb, arg) }
-        .flux_check()?;
+            .flux_check()?;
         Ok(self)
     }
 
@@ -111,20 +120,23 @@ pub trait Future: FromPtr {
         self.then_within(-1.0, func)
     }
 
-    fn and_then<F: FnMut(&mut Self) -> Result<R>, R: Future>(self: &mut Self, func: F) -> Result<R> {
+    fn and_then<F: FnMut(&mut Self) -> Result<R>, R: MyFuture>(
+        self: &mut Self,
+        func: F,
+    ) -> Result<R> {
         let (cb, arg) = Self::package_flux_and_continuation(func);
         let res = Ok(R::from_ptr(
-                unsafe { flux_sys::flux_future_and_then(self.get_inner_mut(), cb, arg) }
+            unsafe { flux_sys::flux_future_and_then(self.get_inner_mut(), cb, arg) }
                 .flux_check()?,
-                ));
+        ));
         res
     }
 
-    fn or_then<R: Future, F: FnMut(&mut Self) -> Result<R>>(self: &mut Self, func: F) -> Result<R> {
+    fn or_then<R: MyFuture, F: FnMut(&mut Self) -> Result<R>>(self: &mut Self, func: F) -> Result<R> {
         let (cb, arg) = Self::package_flux_and_continuation(func);
         Ok(R::from_ptr(
-                unsafe { flux_sys::flux_future_or_then(self.get_inner_mut(), cb, arg) }.flux_check()?,
-                ))
+            unsafe { flux_sys::flux_future_or_then(self.get_inner_mut(), cb, arg) }.flux_check()?,
+        ))
     }
 
     fn is_ready(self: &mut Self) -> bool {
@@ -136,9 +148,21 @@ pub trait Future: FromPtr {
     }
 }
 
-pub trait KvsFuture: Future {}
-
 impl Future for FluxFuture {
+    type Output = ();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if self.is_ready() {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+
+pub trait KvsFuture: MyFuture {}
+
+impl MyFuture for FluxFuture {
     fn get_inner_mut(self: &mut Self) -> *mut flux_sys::flux_future_t {
         self.f
     }
@@ -188,7 +212,7 @@ impl FluxKvsFuture {
     }
 }
 
-impl Future for FluxKvsFuture {
+impl MyFuture for FluxKvsFuture {
     fn get_inner_mut(self: &mut Self) -> *mut flux_sys::flux_future_t {
         self.f.get_inner_mut()
     }

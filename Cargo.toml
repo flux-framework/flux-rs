@@ -1,5 +1,5 @@
 [package]
-name = "capacitor-rs"
+name = "flux-rs"
 version = "0.1.0"
 authors = ["Tom Scogland <scogland1@llnl.gov>"]
 edition = "2018"
