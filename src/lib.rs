@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate error_chain;
 
-mod my_future;
+pub mod my_future;
 use my_future::*;
 
 use flux_sys;
@@ -35,7 +35,7 @@ impl ToPtr for CString {
 }
 
 impl Flux {
-    fn open(uri: &str, flags: u32) -> Result<Flux> {
+    pub fn open(uri: &str, flags: u32) -> Result<Flux> {
         let p = if uri.len() == 0 {
             std::ptr::null()
         } else {
@@ -45,14 +45,14 @@ impl Flux {
             .flux_check()
             .map(|f| Flux { handle: f })
     }
-    fn attr_get(self: &mut Self, name: &str) -> Result<&str> {
+    pub fn attr_get(self: &mut Self, name: &str) -> Result<&str> {
         let s = CString::new(name)?;
         unsafe {
             let cstr_ptr = flux_sys::flux_attr_get(self.handle, s.as_ptr()).flux_check()?;
             Ok(CStr::from_ptr(cstr_ptr).to_str()?)
         }
     }
-    fn service_register(self: &mut Self, name: &str) -> Result<FluxFuture> {
+    pub fn service_register(self: &mut Self, name: &str) -> Result<FluxFuture> {
         let s = CString::new(name)?;
         Ok(unsafe {
             FluxFuture::from_ptr(
@@ -60,7 +60,7 @@ impl Flux {
             )
         })
     }
-    fn kvs_lookup(
+    pub fn kvs_lookup(
         self: &mut Self,
         flags: flux_sys::kvs_op::Type,
         key: &str,
@@ -70,6 +70,12 @@ impl Flux {
             .flux_check()?;
         Ok(FluxKvsFuture::from_ptr(fut_ptr))
     }
+    pub fn get_handle(&self) -> *const flux_sys::flux_t {
+        self.handle
+    }
+    pub fn get_handle_mut(&self) -> *mut flux_sys::flux_t {
+        self.handle
+    }
 }
 
 impl Drop for Flux {
@@ -78,6 +84,6 @@ impl Drop for Flux {
     }
 }
 
-fn reactor_create(flags: i32) -> *mut flux_sys::flux_reactor_t {
+pub fn reactor_create(flags: i32) -> *mut flux_sys::flux_reactor_t {
     unsafe { flux_sys::flux_reactor_create(flags) }
 }

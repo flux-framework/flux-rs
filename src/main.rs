@@ -1,7 +1,9 @@
 use flux_sys;
 use flux_rs::Flux;
+use std::error::Error;
+use flux_rs::my_future::MyFuture;
 
-fn main() -> Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
     eprintln!("starting");
     let mut h = Flux::open("", 0)?;
     // h.service_register("sched")?.get()?;
@@ -23,7 +25,7 @@ fn main() -> Result<()> {
         })?;
     composite.wait_for(-1.0)?;
     unsafe {
-        flux_sys::flux_reactor_run(flux_sys::flux_get_reactor(h.handle), 0);
+        flux_sys::flux_reactor_run(flux_sys::flux_get_reactor(h.get_handle_mut()), 0);
     };
     Ok(())
 }
