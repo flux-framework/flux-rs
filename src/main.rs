@@ -1,4 +1,5 @@
 use flux_sys;
+use flux_rs;
 use flux_rs::Flux;
 use std::error::Error;
 use flux_rs::my_future::MyFuture;
@@ -20,9 +21,5 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("kvs result2:{:?}", f.lookup_get().unwrap());
             flux_rs::reactor_stop(&mut h);
         })?;
-    composite.wait_for(-1.0)?;
-    unsafe {
-        flux_sys::flux_reactor_run(flux_sys::flux_get_reactor(h.get_handle_mut()), 0);
-    };
-    Ok(())
+    flux_rs::reactor_run(&mut h, 0).map(|x| ()).map_err(|x| x.into())
 }

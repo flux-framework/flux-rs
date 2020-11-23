@@ -87,3 +87,16 @@ impl Drop for Flux {
 pub fn reactor_create(flags: i32) -> *mut flux_sys::flux_reactor_t {
     unsafe { flux_sys::flux_reactor_create(flags) }
 }
+
+pub fn reactor_run(h: &mut Flux, flags: i32) -> Result<i32> {
+    let ret = unsafe {
+        flux_sys::flux_reactor_run(flux_sys::flux_get_reactor(h.get_handle_mut()), flags)
+    };
+    ret.flux_check().map(|_x| ret)
+}
+
+pub fn reactor_stop(h: &mut Flux) {
+    unsafe {
+        flux_sys::flux_reactor_stop(flux_sys::flux_get_reactor(h.get_handle_mut()));
+    };
+}
