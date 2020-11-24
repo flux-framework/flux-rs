@@ -36,10 +36,13 @@ impl ToPtr for CString {
 
 impl Flux {
     pub fn open(uri: &str, flags: u32) -> Result<Flux> {
+        // N.B.: need to create the CString outside of the if statement since
+        // the pointer returned by as_ptr has no lifetime information.
+        let new_uri = CString::new(uri)?;
         let p = if uri.len() == 0 {
             std::ptr::null()
         } else {
-            CString::new(uri)?.as_ptr()
+            new_uri.as_ptr()
         };
         unsafe { flux_sys::flux_open(p, flags as i32) }
             .flux_check()
