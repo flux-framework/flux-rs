@@ -1,7 +1,7 @@
 use flux_rs;
+use flux_rs::my_future::MyFuture;
 use flux_rs::Flux;
 use std::error::Error;
-use flux_rs::my_future::MyFuture;
 
 fn main() -> Result<(), Box<dyn Error>> {
     eprintln!("starting");
@@ -20,5 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("kvs result2:{:?}", f.lookup_get().unwrap());
             flux_rs::reactor_stop(&mut h);
         })?;
-    flux_rs::reactor_run(&mut h, 0).map(|_x| ()).map_err(|x| x.into())
+    flux_rs::reactor_run(&mut h, 0)
+        .map(|_x| ())
+        .map_err(|x| x.into())
 }

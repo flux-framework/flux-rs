@@ -4,8 +4,8 @@ use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 
 use std::future::Future;
-use std::task::{Context, Poll};
 use std::pin::Pin;
+use std::task::{Context, Poll};
 
 #[derive(Debug)]
 pub struct FluxFuture {
@@ -50,7 +50,8 @@ pub trait MyFuture: FromPtr {
     fn package_flux_continuation<F: FnMut(&mut Self)>(
         func: F,
     ) -> (flux_sys::flux_continuation_f, *mut std::os::raw::c_void) {
-        let closure: Box<RefCell<Box<dyn FnMut(&mut Self)>>> = Box::new(RefCell::new(Box::new(func)));
+        let closure: Box<RefCell<Box<dyn FnMut(&mut Self)>>> =
+            Box::new(RefCell::new(Box::new(func)));
         let erased_closure = Box::into_raw(closure) as *mut ::std::os::raw::c_void;
         return (Some(Self::callback), erased_closure);
     }
@@ -63,14 +64,14 @@ pub trait MyFuture: FromPtr {
         let mut future = Self::from_ptr(f);
         match &mut (closure.get_mut())(&mut future) {
             Ok(next) => {
-                    flux_sys::flux_future_continue(future.get_inner_mut(), next.get_inner_mut())
-                .flux_check()
-                .unwrap(); // panic on failure
-                           // next.forget(); // keep it from being reaped here
+                flux_sys::flux_future_continue(future.get_inner_mut(), next.get_inner_mut())
+                    .flux_check()
+                    .unwrap(); // panic on failure
+                               // next.forget(); // keep it from being reaped here
             }
             Err(_) => {
-                    //TODO see if we can get the num here
-                    flux_sys::flux_future_continue_error(f, -1, std::ptr::null())
+                //TODO see if we can get the num here
+                flux_sys::flux_future_continue_error(f, -1, std::ptr::null())
             }
         };
         // closure collected here, be sure this is ok
@@ -128,7 +129,10 @@ pub trait MyFuture: FromPtr {
         res
     }
 
-    fn or_then<R: MyFuture, F: FnMut(&mut Self) -> Result<R>>(self: &mut Self, func: F) -> Result<R> {
+    fn or_then<R: MyFuture, F: FnMut(&mut Self) -> Result<R>>(
+        self: &mut Self,
+        func: F,
+    ) -> Result<R> {
         let (cb, arg) = Self::package_flux_and_continuation(func);
         Ok(R::from_ptr(
             unsafe { flux_sys::flux_future_or_then(self.get_inner_mut(), cb, arg) }.flux_check()?,
@@ -154,7 +158,6 @@ impl Future for FluxFuture {
         }
     }
 }
-
 
 pub trait KvsFuture: MyFuture {}
 

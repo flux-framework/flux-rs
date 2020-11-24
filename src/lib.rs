@@ -66,8 +66,10 @@ impl Flux {
         key: &str,
     ) -> Result<FluxKvsFuture> {
         let k = CString::new(key)?;
-        let fut_ptr = unsafe { flux_sys::flux_kvs_lookup(self.handle, std::ptr::null(), flags as i32, k.as_ptr()) }
-            .flux_check()?;
+        let fut_ptr = unsafe {
+            flux_sys::flux_kvs_lookup(self.handle, std::ptr::null(), flags as i32, k.as_ptr())
+        }
+        .flux_check()?;
         Ok(FluxKvsFuture::from_ptr(fut_ptr))
     }
     pub fn get_handle(&self) -> *const flux_sys::flux_t {
