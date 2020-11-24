@@ -18,13 +18,11 @@ pub trait FromPtr: Sized {
 
 impl FromPtr for FluxFuture {
     fn from_ptr(f: *mut flux_sys::flux_future_t) -> FluxFuture {
-        eprintln!("new future: {:?}", f);
         FluxFuture { f: f }
     }
 }
 impl FromPtr for FluxKvsFuture {
     fn from_ptr(f: *mut flux_sys::flux_future_t) -> FluxKvsFuture {
-        eprintln!("new kvs future: {:?}", f);
         FluxKvsFuture {
             f: FluxFuture::from_ptr(f),
         }
@@ -175,8 +173,8 @@ impl MyFuture for FluxFuture {
 
 impl Drop for FluxFuture {
     fn drop(&mut self) {
-        eprintln!("future being dropped {:?}", self);
         if !self.f.is_null() {
+            // TODO: how can we re-enable this?
             // unsafe { flux_sys::flux_future_destroy(self.f) };
             // self.forget();
         }
