@@ -4,12 +4,8 @@ use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 
 use std::future::Future;
-use std::task::{Context, Poll, Waker};
+use std::task::{Context, Poll};
 use std::pin::Pin;
-
-struct FluxInnerFuture {
-    f: Box<FnMut()>,
-}
 
 #[derive(Debug)]
 pub struct FluxFuture {
@@ -46,7 +42,7 @@ pub trait MyFuture: FromPtr {
         f: *mut flux_sys::flux_future_t,
         arg: *mut ::std::os::raw::c_void,
     ) {
-        let mut closure = Box::<RefCell<Box<FnMut(&mut Self)>>>::from_raw(arg as *mut _);
+        let mut closure = Box::<RefCell<Box<dyn FnMut(&mut Self)>>>::from_raw(arg as *mut _);
         let mut future = Self::from_ptr(f);
         (closure.get_mut())(&mut future);
         // closure collected here, be sure this is ok
@@ -54,7 +50,7 @@ pub trait MyFuture: FromPtr {
     fn package_flux_continuation<F: FnMut(&mut Self)>(
         func: F,
     ) -> (flux_sys::flux_continuation_f, *mut std::os::raw::c_void) {
-        let closure: Box<RefCell<Box<FnMut(&mut Self)>>> = Box::new(RefCell::new(Box::new(func)));
+        let closure: Box<RefCell<Box<dyn FnMut(&mut Self)>>> = Box::new(RefCell::new(Box::new(func)));
         let erased_closure = Box::into_raw(closure) as *mut ::std::os::raw::c_void;
         return (Some(Self::callback), erased_closure);
     }
@@ -63,7 +59,7 @@ pub trait MyFuture: FromPtr {
         arg: *mut ::std::os::raw::c_void,
     ) {
         let mut closure =
-            Box::<RefCell<Box<FnMut(&mut Self) -> Result<R>>>>::from_raw(arg as *mut _);
+            Box::<RefCell<Box<dyn FnMut(&mut Self) -> Result<R>>>>::from_raw(arg as *mut _);
         let mut future = Self::from_ptr(f);
         match &mut (closure.get_mut())(&mut future) {
             Ok(next) => {
@@ -82,7 +78,7 @@ pub trait MyFuture: FromPtr {
     fn package_flux_and_continuation<R: MyFuture, F: FnMut(&mut Self) -> Result<R>>(
         func: F,
     ) -> (flux_sys::flux_continuation_f, *mut std::os::raw::c_void) {
-        let closure: Box<RefCell<Box<FnMut(&mut Self) -> Result<R>>>> =
+        let closure: Box<RefCell<Box<dyn FnMut(&mut Self) -> Result<R>>>> =
             Box::new(RefCell::new(Box::new(func)));
         let erased_closure = Box::into_raw(closure) as *mut ::std::os::raw::c_void;
         return (Some(Self::and_cb::<R>), erased_closure);
@@ -116,7 +112,7 @@ pub trait MyFuture: FromPtr {
         Ok(self)
     }
 
-    fn then<F: FnMut(&mut Self)>(mut self: Self, func: F) -> Result<Self> {
+    fn then<F: FnMut(&mut Self)>(self: Self, func: F) -> Result<Self> {
         self.then_within(-1.0, func)
     }
 
@@ -150,7 +146,7 @@ pub trait MyFuture: FromPtr {
 
 impl Future for FluxFuture {
     type Output = ();
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         if self.is_ready() {
             Poll::Ready(())
         } else {

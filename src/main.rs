@@ -1,4 +1,3 @@
-use flux_sys;
 use flux_rs;
 use flux_rs::Flux;
 use std::error::Error;
@@ -10,7 +9,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // h.service_register("sched")?.get()?;
     eprintln!("got a handle!");
     eprintln!("Hello, world! size:{:?}", h.attr_get("size")?);
-    let mut composite = h
+    let _composite = h
         .kvs_lookup(0, "resource.eventlog")?
         .and_then(|fi| {
             eprintln!("kvs result:{:?}", fi.lookup_get()?);
@@ -21,5 +20,5 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("kvs result2:{:?}", f.lookup_get().unwrap());
             flux_rs::reactor_stop(&mut h);
         })?;
-    flux_rs::reactor_run(&mut h, 0).map(|x| ()).map_err(|x| x.into())
+    flux_rs::reactor_run(&mut h, 0).map(|_x| ()).map_err(|x| x.into())
 }
