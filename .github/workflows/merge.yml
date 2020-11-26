@@ -11,6 +11,8 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
 
+    if: ${{ github.repository_owner == 'flux-framework' }}
+
     strategy:
       matrix:
         image: [focal, centos8]
