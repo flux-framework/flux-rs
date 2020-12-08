@@ -4,8 +4,6 @@ extern crate error_chain;
 pub mod my_future;
 use my_future::*;
 
-
-
 // set up error chain module
 mod errors;
 use crate::errors::FluxResultCheck;

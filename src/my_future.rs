@@ -115,10 +115,7 @@ pub trait MyFuture: FromPtr {
         self.then_within(-1.0, func)
     }
 
-    fn and_then<F: FnMut(&mut Self) -> Result<R>, R: MyFuture>(
-        &mut self,
-        func: F,
-    ) -> Result<R> {
+    fn and_then<F: FnMut(&mut Self) -> Result<R>, R: MyFuture>(&mut self, func: F) -> Result<R> {
         let (cb, arg) = Self::package_flux_and_continuation(func);
         Ok(R::from_ptr(
             unsafe { flux_sys::flux_future_and_then(self.get_inner_mut(), cb, arg) }
@@ -126,10 +123,7 @@ pub trait MyFuture: FromPtr {
         ))
     }
 
-    fn or_then<R: MyFuture, F: FnMut(&mut Self) -> Result<R>>(
-        &mut self,
-        func: F,
-    ) -> Result<R> {
+    fn or_then<R: MyFuture, F: FnMut(&mut Self) -> Result<R>>(&mut self, func: F) -> Result<R> {
         let (cb, arg) = Self::package_flux_and_continuation(func);
         Ok(R::from_ptr(
             unsafe { flux_sys::flux_future_or_then(self.get_inner_mut(), cb, arg) }.flux_check()?,
