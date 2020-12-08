@@ -4,7 +4,7 @@ extern crate error_chain;
 pub mod my_future;
 use my_future::*;
 
-use flux_sys;
+
 
 // set up error chain module
 mod errors;
@@ -21,12 +21,12 @@ pub struct Flux {
 }
 
 trait ToPtr {
-    fn to_ptr_or_null(self: &Self) -> *const std::os::raw::c_char;
+    fn to_ptr_or_null(&self) -> *const std::os::raw::c_char;
 }
 
 impl ToPtr for CString {
-    fn to_ptr_or_null(self: &Self) -> *const std::os::raw::c_char {
-        if self.as_bytes().len() == 0 {
+    fn to_ptr_or_null(&self) -> *const std::os::raw::c_char {
+        if self.as_bytes().is_empty() {
             std::ptr::null()
         } else {
             self.as_ptr()
@@ -39,7 +39,7 @@ impl Flux {
         // N.B.: need to create the CString outside of the if statement since
         // the pointer returned by as_ptr has no lifetime information.
         let new_uri = CString::new(uri)?;
-        let p = if uri.len() == 0 {
+        let p = if uri.is_empty() {
             std::ptr::null()
         } else {
             new_uri.as_ptr()
@@ -48,14 +48,14 @@ impl Flux {
             .flux_check()
             .map(|f| Flux { handle: f })
     }
-    pub fn attr_get(self: &mut Self, name: &str) -> Result<&str> {
+    pub fn attr_get(&mut self, name: &str) -> Result<&str> {
         let s = CString::new(name)?;
         unsafe {
             let cstr_ptr = flux_sys::flux_attr_get(self.handle, s.as_ptr()).flux_check()?;
             Ok(CStr::from_ptr(cstr_ptr).to_str()?)
         }
     }
-    pub fn service_register(self: &mut Self, name: &str) -> Result<FluxFuture> {
+    pub fn service_register(&mut self, name: &str) -> Result<FluxFuture> {
         let s = CString::new(name)?;
         Ok(unsafe {
             FluxFuture::from_ptr(
@@ -64,7 +64,7 @@ impl Flux {
         })
     }
     pub fn kvs_lookup(
-        self: &mut Self,
+        &mut self,
         flags: flux_sys::kvs_op::Type,
         key: &str,
     ) -> Result<FluxKvsFuture> {
