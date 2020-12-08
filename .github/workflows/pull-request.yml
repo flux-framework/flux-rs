@@ -15,6 +15,16 @@ jobs:
       - run: git fetch origin master
       - uses: flux-framework/pr-validator@master
 
+  format-and-lint:
+    name: Check Formatting and Run Linters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - run: cargo fmt -- --check
+
   run-ci-tests:
     name: Run CI Tests
     runs-on: ubuntu-latest
