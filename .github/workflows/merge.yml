@@ -1,0 +1,44 @@
+name: Build flux-rs docker image on merge
+on:
+  schedule:
+    # * is a special character in YAML so you have to quote this string
+    - cron:  '5 4 * * *'
+  push:
+    branches:
+      - master
+jobs:
+  build-docker-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+
+    if: ${{ github.repository_owner == 'flux-framework' }}
+
+    strategy:
+      matrix:
+        image: [focal, centos8]
+
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      -
+        name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: travisflux
+          password: ${{ secrets.DOCKER_HUB_TRAVISFLUX_TOKEN }}
+      -
+        name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          file: ./src/test/docker/${{ matrix.image }}/Dockerfile
+          pull: true
+          push: true
+          tags: fluxrm/rust:${{ matrix.image }}
+      -
+        name: Image digest
+        run: echo ${{ steps.docker_build.outputs.digest }}
