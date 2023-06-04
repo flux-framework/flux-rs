@@ -52,8 +52,7 @@ impl SideFlux {
         let mut child = Command::new("flux")
             .args(&[
                 "start",
-                format!("--size={}", size).as_str(),
-                "--bootstrap=selfpmi",
+                format!("--test-size={}", size).as_str(),
                 "--",
                 "bash",
             ])
